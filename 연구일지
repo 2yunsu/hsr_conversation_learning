@@ -12,3 +12,7 @@ https://developer.softbankrobotics.com/pepper-naoqi-25/naoqi-developer-guide/nao
 2. 구체적인 시나리오 잡아서, 찍은 이미지 및 텍스트 등을 모델에 실시간으로 학습 데이터로 넣어서 online learning 시켜보기!
 
 https://github.com/jesn1219/pepper_demo_bilab
+
+python version : 2.7.17
+torch==1.4.0
+torchvision==0.5.0
