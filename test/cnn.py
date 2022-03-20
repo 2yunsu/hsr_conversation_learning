@@ -12,8 +12,9 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 from PIL import Image
 import cv2
+from camera_ready import camera_ready
 
-
+camera_ready()
 
 class CustomImageDataset(Dataset):
     def __init__(self, annotations_file, img_dir, transform=None):
