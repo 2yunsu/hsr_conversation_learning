@@ -1,3 +1,4 @@
+# -*- coding: utf8 -*-
 import torch
 import torchvision
 from torch.utils.data import DataLoader
@@ -8,7 +9,7 @@ import torch.optim as optim
 import pandas as pd
 
 #load_data
-transform = tr.Compose([tr.Resize(64), tr.ToTensor(), tr.Normalize((0.5,0.5,0.5),(0.5,0.5,0.5))])
+transform = tr.Compose([tr.Resize([64,64]), tr.ToTensor(), tr.Normalize((0.5,0.5,0.5),(0.5,0.5,0.5))])
 trainset = torchvision.datasets.ImageFolder(root="./images_class", transform=transform)
 trainloader = DataLoader(trainset, batch_size=1, shuffle=False, num_workers=2)
 testset = torchvision.datasets.ImageFolder(root="./images_class", transform=transform)
@@ -90,15 +91,16 @@ class Net(nn.Module):
 		self.conv1 = nn.Conv2d(3, 6, 5)
 		self.pool = nn.MaxPool2d(2, 2)
 		self.conv2 = nn.Conv2d(6, 16, 5)
-		self.fc1 = nn.Linear(16 * 5 * 5, 120)
+		self.fc1 = nn.Linear(2704, 120)
 		self.fc2 = nn.Linear(120, 84)
 		self.fc3 = nn.Linear(84, 10)
 
 	# 연산 순서 정의
 	def forward(self, x):
+		# 64 x 64
 		x = self.pool(F.relu(self.conv1(x)))
 		x = self.pool(F.relu(self.conv2(x)))
-		x = x.view(-1, 16 * 5 * 5)
+		x = x.view(-1, 16 * 13 * 13)
 		x = F.relu(self.fc1(x))
 		x = F.relu(self.fc2(x))
 		x = self.fc3(x)
@@ -138,7 +140,7 @@ for epoch in range(5):
 print('Finished Training')
 
 # 학습한 모델 저장
-PATH = "C:/projects/hsr_conversation_learning/hsr_net.pth"
+PATH = "hsr_net.pth"
 torch.save(net.state_dict(), PATH)
 
 # 저장한 모델 불러오기
