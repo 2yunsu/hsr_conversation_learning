@@ -9,9 +9,9 @@ import pandas as pd
 
 #load_data
 transform = tr.Compose([tr.Resize(64), tr.ToTensor(), tr.Normalize((0.5,0.5,0.5),(0.5,0.5,0.5))])
-trainset = torchvision.datasets.ImageFolder(root="./images_classification", transform=transform)
+trainset = torchvision.datasets.ImageFolder(root="./images_class", transform=transform)
 trainloader = DataLoader(trainset, batch_size=1, shuffle=False, num_workers=2)
-testset = torchvision.datasets.ImageFolder(root="./images_test", transform=transform)
+testset = torchvision.datasets.ImageFolder(root="./images_class", transform=transform)
 testloader = DataLoader(testset, batch_size=1, shuffle=False, num_workers=2)
 
 """
@@ -34,6 +34,52 @@ class CustomImageDataset(Dataset):
         if self.target_transform:
             label = self.target_transform(label)
         return image, label
+"""
+
+"""
+class MyDataset(Dataset):
+	def __init__(self, x_data, y_data, transform=None):
+		# 텐서 변환 안함
+		self.x_data = x_data
+		self.y_data = y_data
+		self.transform = transform
+		self.len = len(y_data)
+
+	def __getitem__(self, index):
+		# 튜플 형태로 내보내기 전에 전처리 작업 실행
+		sample = self.x_data[index], self.y_data[index]
+		if self.transform:
+			sample = self.trasform(sample)
+		return sample  # 넘파이로 출력됨
+
+	def __len__(self):
+		return self.len
+
+class ToTensor:
+	def __call__(self, sample):
+		inputs, labels = sample
+		inputs = torch.FloatTensor(inputs)
+		inputs = inputs.permute(2, 0, 1)
+		return inputs, torch.LongTensor(labels)
+
+		transf = tr.Compose
+# 들어온 데이터를 연산
+class LinearTensor:
+	def __init__(self, slope=1, bias=0):
+		self.slope = slope
+		self.bias = bias
+
+	def __call__(self, sample):
+		inputs, labels = sample
+		inputs = self.slope * inputs + self.bias
+		return inputs, labels
+
+trans = tr.Compose([ToTensor(),LinearTensor(2,5)])
+ds1 = MyDataset(train_images, train_labels, transform=trans)
+train_loader1 = DataLoader(ds1, batch_size=10, shuffle=True)
+first_data = ds1[0]
+features, labels = first_data
+print(type(features), type(labels))
 """
 
 # nn.Module을 상속 받는다.
@@ -92,7 +138,7 @@ for epoch in range(5):
 print('Finished Training')
 
 # 학습한 모델 저장
-PATH = "C:/pypy/cifar_net.pth"
+PATH = "C:/projects/hsr_conversation_learning/hsr_net.pth"
 torch.save(net.state_dict(), PATH)
 
 # 저장한 모델 불러오기
@@ -111,50 +157,3 @@ with torch.no_grad():
 		correct += (predicted == labels).sum().item()
 
 print("Accuracy of the network on th 10000 test images : %d %%" % (100 * correct / total))
-
-
-"""
-class MyDataset(Dataset):
-	def __init__(self, x_data, y_data, transform=None):
-		# 텐서 변환 안함
-		self.x_data = x_data
-		self.y_data = y_data
-		self.transform = transform
-		self.len = len(y_data)
-
-	def __getitem__(self, index):
-		# 튜플 형태로 내보내기 전에 전처리 작업 실행
-		sample = self.x_data[index], self.y_data[index]
-		if self.transform:
-			sample = self.trasform(sample)
-		return sample  # 넘파이로 출력됨
-
-	def __len__(self):
-		return self.len
-
-class ToTensor:
-	def __call__(self, sample):
-		inputs, labels = sample
-		inputs = torch.FloatTensor(inputs)
-		inputs = inputs.permute(2, 0, 1)
-		return inputs, torch.LongTensor(labels)
-
-		transf = tr.Compose
-# 들어온 데이터를 연산
-class LinearTensor:
-	def __init__(self, slope=1, bias=0):
-		self.slope = slope
-		self.bias = bias
-
-	def __call__(self, sample):
-		inputs, labels = sample
-		inputs = self.slope * inputs + self.bias
-		return inputs, labels
-
-trans = tr.Compose([ToTensor(),LinearTensor(2,5)])
-ds1 = MyDataset(train_images, train_labels, transform=trans)
-train_loader1 = DataLoader(ds1, batch_size=10, shuffle=True)
-first_data = ds1[0]
-features, labels = first_data
-print(type(features), type(labels))
-"""
