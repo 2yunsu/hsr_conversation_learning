@@ -8,9 +8,8 @@
 import pyrealsense2 as rs
 import numpy as np
 import cv2
-import os
 
-def camera_ready(name):
+def camera_ready():
     # Configure depth and color streams
     pipeline = rs.pipeline()
     config = rs.config()
@@ -39,10 +38,8 @@ def camera_ready(name):
 
     # Start streaming
     pipeline.start(config)
-    stop=False
-
     try:
-        while stop==False:
+        while True:
             # Wait for a coherent pair of frames: depth and color
             frames = pipeline.wait_for_frames()
             depth_frame = frames.get_depth_frame()
@@ -73,15 +70,11 @@ def camera_ready(name):
             cv2.namedWindow('RealSense', cv2.WINDOW_AUTOSIZE)
             cv2.imshow('RealSense', images)
             cv2.waitKey(1)
-            cv2.imwrite('images/{}.png'.format(name), images)
-            stop=True
-            return
 
     finally:
+
         # Stop streaming
         pipeline.stop()
     print('end')
 
-if __name__ == '__main__':
-    name= 'test'
-    camera_ready(name)
+camera_ready()

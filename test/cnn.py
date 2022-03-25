@@ -14,25 +14,25 @@ from PIL import Image
 import cv2
 from camera_ready import camera_ready
 
-camera_ready()
-
 class CustomImageDataset(Dataset):
-    def __init__(self, annotations_file, img_dir, transform=None):
-        self.img_labels = pd.read_csv(annotations_file, names=['.', 'label'])
-        self.img_dir = img_dir
-        self.transform = transform
+	def __init__(self, annotations_file, img_dir, transform=None):
+		self.annotations_file = annotations_file
+		self.img_labels = pd.read_csv(annotations_file, names=['.', 'label'])
+		self.img_dir = img_dir
+		self.transform = transform
 
-    def __len__(self):
-        return len(self.img_labels)
+	def __len__(self):
+		return len(self.img_labels)
 
-    def __getitem__(self, idx):
-        img_path = os.path.join(self.img_dir, self.img_labels.iloc[idx, 0])
-        image = cv2.imread(img_path) # image == color_image
-        image = Image.fromarray(image)
-        label = self.img_labels.iloc[idx, 1]
-        if self.transform:
-            image = self.transform(image)
-        return image, label
+	def __getitem__(self, idx):
+		self.img_labels = pd.read_csv(self.annotations_file, names=['.', 'label'])
+		img_path = os.path.join(self.img_dir, self.img_labels.iloc[idx, 0])
+		image = cv2.imread(img_path) # image == color_image
+		image = Image.fromarray(image)
+		label = self.img_labels.iloc[idx, 1]
+		if self.transform:
+			image = self.transform(image)
+		return image, label
 
 
 # nn.Module을 상속 받는다.
@@ -59,7 +59,8 @@ class Net(nn.Module):
 
 		return x
 
-if __name__ == '__main__':
+def start_cnn():
+	# if __name__ == '__main__':
 	#load_data
 	transform = tr.Compose([tr.Resize([64,64]), tr.ToTensor(), tr.Normalize((0.5,0.5,0.5),(0.5,0.5,0.5))])
 	customset = CustomImageDataset(annotations_file='labels.csv',
@@ -121,3 +122,19 @@ if __name__ == '__main__':
 			correct += (predicted == labels).sum().item()
 
 	print("Accuracy of the network on th 10000 test images : %d %%" % (100 * correct / total))
+
+# if __name__ == '__main__':
+# 	while True:
+# 		image_name = camera_ready()+'.png'
+# 		labels = pd.read_csv('labels.csv', names=['Name', 'Labels'])
+# 		input_label = pd.DataFrame({'Name':[image_name], 'Labels': [input("Label: ")]})
+# 		new_labels=labels.append(input_label, ignore_index=True)
+# 		print(new_labels)
+# 		new_labels.to_csv("labels.csv", mode='w', index=False, header=False)
+# 		start_learning = input("start learning?(Y/N): ")
+#
+# 		if start_learning=="Y"or"y":
+# 			start_cnn()
+# 			break
+# 		else:
+# 			continue
