@@ -1,10 +1,17 @@
-from camera_ready import camera_ready
+## License: Apache 2.0. See LICENSE file in root directory.
+## Copyright(c) 2015-2017 Intel Corporation. All Rights Reserved.
+
+###############################################
+##      Open CV and Numpy integration        ##
+###############################################
+
+import pyrealsense2 as rs
+import numpy as np
 import cv2
-import pandas as pd
-# from cnn import start_cnn
+# for training
 import torch
 import torchvision
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import Dataset
 import torchvision.transforms as tr
 import torch.nn as nn
 import torch.nn.functional as F
@@ -13,70 +20,156 @@ import pandas as pd
 import os
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
+from collections import deque
 from PIL import Image
-import cv2
-from cnn import CustomImageDataset, Net
+import random
 
-labels = pd.read_csv('labels.csv', names=['Name', 'Labels'])
+
+class CustomImageDataset(Dataset):
+    def __init__(self, annotations_file, img_dir, transform=None):
+        self.annotations_file = annotations_file
+        self.img_labels = pd.read_csv(annotations_file, names=['.', 'label'])
+        self.img_dir = img_dir
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.img_labels)
+
+    def __getitem__(self, idx):
+        self.img_labels = pd.read_csv(self.annotations_file, names=['.', 'label'])
+        img_path = os.path.join(self.img_dir, self.img_labels.iloc[idx, 0])
+        image = cv2.imread(img_path) # image == color_image
+        image = Image.fromarray(image)
+        label = self.img_labels.iloc[idx, 1]
+        if self.transform:
+            image = self.transform(image)
+        return image, label
+
+
+class Net(nn.Module):
+    def __init__(self):
+        super(Net, self).__init__()
+        self.conv1 = nn.Conv2d(3, 6, 5)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(6, 16, 5)
+        self.fc1 = nn.Linear(2704, 120)
+        self.fc2 = nn.Linear(120, 84)
+        self.fc3 = nn.Linear(84, 10)
+
+    # 연산 순서 정의
+    def forward(self, x):
+        # 64 x 64
+        x = x.view(-1, 3, 64, 64)
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = x.view(-1, 16 * 13 * 13)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+
+        return x
+
+def train(image, label):
+    batch_size = 64
+    image = Image.fromarray(image)
+    image_tensor = transform(image)
+    label = torch.LongTensor([label])  # label == 0
+    memory.append((image_tensor, label))
+    if len(memory) < batch_size:
+        return
+    batch = random.sample(memory, batch_size)
+    img, lab = zip(*batch)
+    image_tensor = torch.cat(img)
+    label = torch.cat(lab)
+    net.train()
+    optimizer.zero_grad()
+    output = net(image_tensor)
+    # print(output, label)
+
+    loss = F.cross_entropy(output, label)
+    print(loss.item())
+    loss.backward()
+    optimizer.step()
+    return
 
 
 
 
 if __name__ == '__main__':
+    # for train setup
+    memory = deque(maxlen=5000)
     transform = tr.Compose([tr.Resize([64, 64]), tr.ToTensor(), tr.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-    customset = CustomImageDataset(annotations_file='labels.csv',
-                                   img_dir='images',
-                                   transform=transform)
-    trainset, testset = train_test_split(customset, test_size=0.2)
-    trainloader = DataLoader(trainset, batch_size=1, shuffle=False, num_workers=2)
-    testloader = DataLoader(testset, batch_size=1, shuffle=False, num_workers=2)
     net = Net()
     print(net)
 
-    # optimizer 사용 정의
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 
-    while True:
-        name = input("file name:")
-        camera_ready(name)
-        image_name = name+'.png'
-        input_label = pd.DataFrame({'Name':[image_name], 'Labels': [input("Label: ")]})
-        if image_name in labels[['Name']].values:
-            print("file name is already exists: ")
-            continue
-        labels=labels.append(input_label, ignore_index=True)
-        labels.to_csv("labels.csv", mode='w', index=False, header=False)
-        start_learning = input("start learning?(Y/N): ")
 
-        if start_learning=="Y" or start_learning=="y":
-            # start train
-            for epoch in tqdm(range(5)):
-                running_loss = 0.0
-                # traindata 불러오기(배치 형태로 들어옴)
-                for i, data in enumerate(trainloader, 0):
-                    inputs, labels = data
-                    # optimizer 초기화
-                    optimizer.zero_grad()
-                    # net에 input 이미지 넣어서 output 나오기
-                    outputs = net(inputs)
-                    # output로 loss값 계산
-                    loss = criterion(outputs, labels)
-                    # loss를 기준으로 미분자동계산
-                    loss.backward()
-                    # optimizer 계산
-                    optimizer.step()
-                    # loss값 누적
-                    running_loss += loss.item()
-                    if i % 2000 == 1999:
-                        print('[%d, %5d] loss: %.3f' %
-                              (epoch + 1, i + 1, running_loss / 2000))
-                        running_loss = 0.0
+    # Configure depth and color streams
+    pipeline = rs.pipeline()
+    config = rs.config()
 
-        finish_answer = input('finish the training?(Y/N): ')
-        if finish_answer=="Y" or finish_answer=="y":
+    # Get device product line for setting a supporting resolution
+    pipeline_wrapper = rs.pipeline_wrapper(pipeline)
+    pipeline_profile = config.resolve(pipeline_wrapper)
+    device = pipeline_profile.get_device()
+    device_product_line = str(device.get_info(rs.camera_info.product_line))
+
+    found_rgb = False
+    for s in device.sensors:
+        if s.get_info(rs.camera_info.name) == 'RGB Camera':
+            found_rgb = True
             break
+    if not found_rgb:
+        print("The demo requires Depth camera with Color sensor")
+        exit(0)
 
-    # 학습한 모델 저장
-    PATH = "hsr_net.pth"
-    torch.save(net.state_dict(), PATH)
+    config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
+
+    if device_product_line == 'L500':
+        config.enable_stream(rs.stream.color, 960, 540, rs.format.bgr8, 30)
+    else:
+        config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
+
+    # Start streaming
+    pipeline.start(config)
+    stop = False
+    idx = 0
+    while True:
+        # Wait for a coherent pair of frames: depth and color
+        frames = pipeline.wait_for_frames()
+        depth_frame = frames.get_depth_frame()
+        color_frame = frames.get_color_frame()
+        if not depth_frame or not color_frame:
+            continue
+
+        # Convert images to numpy arrays
+        depth_image = np.asanyarray(depth_frame.get_data())
+        color_image = np.asanyarray(color_frame.get_data())
+
+        # Apply colormap on depth image (image must be converted to 8-bit per pixel first)
+        depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_JET)
+
+        depth_colormap_dim = depth_colormap.shape
+        color_colormap_dim = color_image.shape
+
+        # If depth and color resolutions are different, resize color image to match depth image for display
+        if depth_colormap_dim != color_colormap_dim:
+            resized_color_image = cv2.resize(color_image, dsize=(depth_colormap_dim[1], depth_colormap_dim[0]),
+                                             interpolation=cv2.INTER_AREA)
+            images = np.hstack((resized_color_image, depth_colormap))
+        else:
+            # images = np.hstack((color_image, depth_colormap))
+            images = color_image
+            # color_image !!!!!
+        label = 0
+        train(color_image, label)
+        # Show images
+        cv2.namedWindow('RealSense', cv2.WINDOW_AUTOSIZE)
+        cv2.imshow('RealSense', images)
+        cv2.waitKey(1)
+        cv2.imwrite('images/{}.png'.format(idx), images)
+        idx += 1
+
+    print('end')
