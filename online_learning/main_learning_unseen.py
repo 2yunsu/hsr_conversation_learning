@@ -374,13 +374,14 @@ if __name__ == '__main__':
         joint_controller.move_to_joint_positions('scan_z1')
         joint_controller.move_to_joint_positions('scan_z2')
         joint_controller.move_to_joint_positions('go_to_position')
-
+        train_start_pub.publish(0)
+        print('[End] trained')
         print('5. Go to the place box')
         omni_base.go_abs(box_position[0], box_position[1], box_position[2], 100)
         joint_controller.move_to_joint_positions('place_position')
         joint_controller.move_to_joint_positions('place_position')
 
-        train_start_pub.publish(0)
+        
         # place
         rospy.sleep(3)
         print('6. place the object')

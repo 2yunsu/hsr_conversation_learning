@@ -71,7 +71,7 @@ class Trainer(object):
     def _head_callback(self, img_msg):
         cv_image = self.bridge.imgmsg_to_cv2(img_msg, "passthrough")
         cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
-        cv_image = cv2.resize(cv_image, dsize=(32, 32), interpolation=cv2.INTER_NEAREST)
+        cv_image = cv2.resize(cv_image, dsize=(64, 64), interpolation=cv2.INTER_NEAREST)
         self.rgb_queue.append(cv_image)
 
     def _depth_callback(self, data):
@@ -162,22 +162,18 @@ class Trainer(object):
 
     def evaluate(self):
         start_eval = time.time()
-
         # sample the batch
         batch_size = self.args.batch_size
         if len(self.eval_memory) < self.args.batch_size:
             batch_size = len(self.eval_memory)
+            return
         batch = random.sample(self.eval_memory, batch_size)
-        r, d, t, a, l = zip(*batch)
+        r, l = zip(*batch)
         r = torch.cat(r)
-        d = torch.cat(d)
-        t = torch.cat(t)
-        a = torch.cat(a)
         l = torch.cat(l)
 
         model.eval()
-        input_representation = model.fusion(r, d, t, a)
-        output = model(input_representation)
+        output = model(r)
         loss = F.cross_entropy(output, l)
 
         new_val = np.array(loss.item())
@@ -193,14 +189,9 @@ class Trainer(object):
         return new_val
 
     def test(self):
-        force_q = self.weight_queue
         rgb_q = self.rgb_queue
-        depth_q = self.depth_queue
-        angle_q = self.angle_queue
-
-        r, d, t, a = self.HsrDataset(self.args, force_q, rgb_q, depth_q, angle_q)
-        input_representation = model.fusion(r, d, t, a)
-        test_output = model(input_representation)
+        r = torch.FloatTensor(rgb_q).view(-1, 1, 3, 32, 32).cuda(args.device_id)
+        test_output = model(r)
         pred = test_output.max(1, keepdim=True)[1]
         pred = pred.cpu()
         pred = np.squeeze(pred, axis=1)
@@ -258,7 +249,7 @@ def get_config():
     return args
 
 if __name__ == '__main__':
-    from model import CNN
+    from CNN import Net
     args = get_config()
 
     rospy.init_node('hsr_realtime_trainer')
@@ -269,7 +260,7 @@ if __name__ == '__main__':
     train_controller = Trainer(now, maxlen, args)
 
     # LOAD MODEL
-    model = CNN()
+    model = Net()
     model = model.to(args.device_id)
     train_controller.set_model(model)
     print(model)
@@ -289,7 +280,7 @@ if __name__ == '__main__':
     y_vec_train[-args.maxlen:] = 0
     line2 = live_plotter(x_vec_train, y_vec_train, line2, identifier='train_loss')
     y_vec_train = np.append(y_vec_train[args.maxlen:], [0.0 for i in range(args.maxlen)])
-
+    '''
     while not rospy.is_shutdown():
         if train_controller.train_mode == True:
             train_controller.eval_for_train()
@@ -298,11 +289,12 @@ if __name__ == '__main__':
             if end_key == 'q':
                 print('go train phase')
                 print('eval set: ', len(train_controller.eval_memory))
+                '''
 
     while not rospy.is_shutdown():
         if train_controller.train_mode == True:
             new_val = train_controller.train()
-            train_controller.evaluate()
+            # train_controller.evaluate()
             y_vec_train[-args.maxlen:] = new_val
             line2 = live_plotter(x_vec_train, y_vec_train, line2, identifier='train_loss')
             y_vec_train = np.append(y_vec_train[args.maxlen:], [0.0 for i in range(args.maxlen)])
