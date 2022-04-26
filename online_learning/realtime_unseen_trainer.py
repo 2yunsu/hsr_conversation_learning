@@ -5,7 +5,7 @@ from geometry_msgs.msg import WrenchStamped
 from std_msgs.msg import Int16
 from sensor_msgs.msg import Image, JointState
 from cv_bridge import CvBridge
-from collections import deque
+from collections import deque, Counter
 import random
 import cv2
 
@@ -71,7 +71,7 @@ class Trainer(object):
     def _head_callback(self, img_msg):
         cv_image = self.bridge.imgmsg_to_cv2(img_msg, "passthrough")
         cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
-        cv_image = cv2.resize(cv_image, dsize=(64, 64), interpolation=cv2.INTER_NEAREST)
+        cv_image = cv2.resize(cv_image, dsize=(128, 128), interpolation=cv2.INTER_NEAREST)
         self.rgb_queue.append(cv_image)
 
     def _depth_callback(self, data):
@@ -115,7 +115,7 @@ class Trainer(object):
     def train(self):
         start_train = time.time()
         rgb_q = self.rgb_queue
-        _r = torch.FloatTensor(rgb_q).view(-1, 1, 3, 32, 32).cuda(args.device_id)
+        _r = torch.FloatTensor(rgb_q).view(-1, 1, 3, 128, 128).cuda(args.device_id)
         label = self.label
         # memorize
         self.memory.append((_r, label))
@@ -126,8 +126,12 @@ class Trainer(object):
             batch_size = len(self.memory)
         batch = random.sample(self.memory, batch_size)
         r, l = zip(*batch)
+
         r = torch.cat(r)
         l = torch.cat(l)
+        if len(Counter(l.cpu().numpy()).items()) == 1:
+            return 0
+
 
         model.train()
         self.optimizer.zero_grad()
@@ -144,7 +148,7 @@ class Trainer(object):
             self.first_train = False
 
             self.item_size = sys.getsizeof(_r) + sys.getsizeof(label)
-
+        print(loss.item())
         tempdf = pd.DataFrame([{'id': self.train_idx, 'time': time.time()-self.starttime, 'abs_time': time.time(), 'train_time': self.train_time,
                                        'train_loss': loss.item(), 'queue_size': len(self.memory), 'queue_byte': self.item_size * len(self.memory) / (1024.0)}])
         self.train_df = self.train_df.append(tempdf, ignore_index=True)
@@ -153,7 +157,7 @@ class Trainer(object):
 
     def eval_for_train(self):
         rgb_q = self.rgb_queue
-        _r = torch.FloatTensor(rgb_q).view(-1, 1, 3, 32, 32).cuda(args.device_id)
+        _r = torch.FloatTensor(rgb_q).view(-1, 1, 3, 128, 128).cuda(args.device_id)
         label = self.label
         # memorize
         self.eval_memory.append((_r, label))
@@ -190,7 +194,7 @@ class Trainer(object):
 
     def test(self):
         rgb_q = self.rgb_queue
-        r = torch.FloatTensor(rgb_q).view(-1, 1, 3, 32, 32).cuda(args.device_id)
+        r = torch.FloatTensor(rgb_q).view(-1, 1, 3, 128, 128).cuda(args.device_id)
         test_output = model(r)
         pred = test_output.max(1, keepdim=True)[1]
         pred = pred.cpu()
@@ -199,7 +203,7 @@ class Trainer(object):
         return new_val
 
     def HsrDataset(self, args, hand_q):
-        r = torch.FloatTensor(hand_q).view(-1, 1, 3, 32, 32)
+        r = torch.FloatTensor(hand_q).view(-1, 1, 3, 128, 128)
         return r.cuda(args.device_id)
 
 
@@ -280,16 +284,7 @@ if __name__ == '__main__':
     y_vec_train[-args.maxlen:] = 0
     line2 = live_plotter(x_vec_train, y_vec_train, line2, identifier='train_loss')
     y_vec_train = np.append(y_vec_train[args.maxlen:], [0.0 for i in range(args.maxlen)])
-    '''
-    while not rospy.is_shutdown():
-        if train_controller.train_mode == True:
-            train_controller.eval_for_train()
-        else:
-            end_key = raw_input('end :')
-            if end_key == 'q':
-                print('go train phase')
-                print('eval set: ', len(train_controller.eval_memory))
-                '''
+
 
     while not rospy.is_shutdown():
         if train_controller.train_mode == True:

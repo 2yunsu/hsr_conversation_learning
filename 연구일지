@@ -1,3 +1,27 @@
+4/19(tue)
+
+hsrb_mode
+cd ~/Pycharmprojects/hsr_tidyup/UnseenObjectClustering
+rosrun rviz rviz -d ./ros/segmentation.rviz
+
+hsrb_mode
+cd ~/Pycharmprojects/hsr_tidyup/UnseenObjectClustering
+python ros/Unseen_object_tester.py
+
+hsrb_mode
+cd ~/PycharmProjects/hsr_conversation_learning/online_learning
+python3 stt_publisher
+
+hsrb_mode
+cd ~/PycharmProjects/hsr_conversation_learning/online_learning
+python realtime_unseen_trainer.py 
+
+hsrb_mode
+cd ~/PycharmProjects/hsr_conversation_learning/online_learning
+python main_learning_unseen.py 
+
+
+
 3/10(목)
 
 1. 페퍼 관련 셋업 및 구현 위한 전달 사항 전달.

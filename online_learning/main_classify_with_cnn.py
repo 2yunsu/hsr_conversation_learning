@@ -81,7 +81,7 @@ class ClassifyController(object):
         grasping_topic = '/unseen_cnn_learning/classify'
         rospy.Subscriber(grasping_topic, Int16, self._classify_callback)
 
-    def _grasp_callback(self, x):
+    def _classify_callback(self, x):
         if x.data == 0:  # can
             self.class_label = 0
         elif x.data == 1: # plastic
@@ -91,8 +91,6 @@ class ClassifyController(object):
         else: # error
             self.class_label = 3
         self.class_label_list.append(self.class_label)
-        #for debug
-        print(self.class_label)
 
     def reset_class_label_list(self):
         self.class_label_list = []
@@ -213,6 +211,25 @@ class JointController(object):
 
         self.gripper_pub.publish(traj)
 
+    def move_to_learn_object(self, whole_body):
+        # scan position1
+        whole_body.move_to_joint_positions({'head_tilt_joint': -0.8})
+        whole_body.move_to_joint_positions({'arm_lift_joint': 0})
+        whole_body.move_to_joint_positions({'arm_flex_joint': -0.7})
+        whole_body.move_to_joint_positions({'arm_roll_joint': 0.3})
+        whole_body.move_to_joint_positions({'wrist_flex_joint': 1.1})
+
+        whole_body.move_to_joint_positions({'wrist_roll_joint': -1.919})  # spin
+        whole_body.move_to_joint_positions({'wrist_roll_joint': 3.665})
+
+        # scan_pposition2
+        whole_body.move_to_joint_positions({'head_tilt_joint': -0.6})
+        whole_body.move_to_joint_positions({'arm_lift_joint': 0})
+        whole_body.move_to_joint_positions({'arm_roll_joint': -0.5})
+        whole_body.move_to_joint_positions({'wrist_flex_joint': -0.6})
+        whole_body.move_to_joint_positions({'arm_flex_joint': 0})
+
+        whole_body.move_to_joint_positions({'wrist_roll_joint': -1.919})
 
 
 def get_config():
@@ -322,14 +339,8 @@ if __name__ == '__main__':
         classify_controller.reset_class_label_list()
 
         # scan
-        joint_controller.move_to_joint_positions('scan_position')
-        joint_controller.move_to_joint_positions('scan_x1')
-        joint_controller.move_to_joint_positions('scan_x2')
-        joint_controller.move_to_joint_positions('scan_y1')
-        joint_controller.move_to_joint_positions('scan_y2')
-        joint_controller.move_to_joint_positions('scan_z1')
-        joint_controller.move_to_joint_positions('scan_z2')
-        joint_controller.move_to_joint_positions('go_to_position')
+
+        joint_controller.move_to_learn_object(whole_body)
 
         object_label = classify_controller.get_result()
         object_list = ['can', 'plastic', 'paper']

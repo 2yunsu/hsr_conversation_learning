@@ -14,6 +14,8 @@ from hsrb_interface import geometry
 import controller_manager_msgs.srv
 import numpy as np
 from std_msgs.msg import Int16
+import time
+import copy
 from tmc_manipulation_msgs.srv import (
     SafeJointChange,
     SafeJointChangeRequest
@@ -74,6 +76,19 @@ class VisionController(object):
                 min_box_info = box
         return min_object_pc, min_box_info
 
+
+class STTController(object):
+    def __init__(self):
+        self.label = 5
+        self.label_list = ['can', 'plastic', 'paper', 'yes', 'no', 'wrong']
+        self._stt_sub = rospy.Subscriber('stt_hsr', Int16, self._stt_callback)
+
+    def _stt_callback(self, data):
+        print(data.data)
+        if data.data < 5:
+            self.label = data.data
+        else:
+            self.label = 5 # it is wrong label
 
 
 class ForceSensorController(object):
@@ -221,6 +236,26 @@ class JointController(object):
 
         self.gripper_pub.publish(traj)
 
+    def move_to_learn_object(self, whole_body):
+        # scan position1
+        whole_body.move_to_joint_positions({'head_tilt_joint': -0.8})
+        whole_body.move_to_joint_positions({'arm_lift_joint': 0})
+        whole_body.move_to_joint_positions({'arm_flex_joint': -0.7})
+        whole_body.move_to_joint_positions({'arm_roll_joint': 0.3})
+        whole_body.move_to_joint_positions({'wrist_flex_joint': 1.1})
+
+        whole_body.move_to_joint_positions({'wrist_roll_joint': -1.919})  # spin
+        whole_body.move_to_joint_positions({'wrist_roll_joint': 3.665})
+
+        # scan_pposition2
+        whole_body.move_to_joint_positions({'head_tilt_joint': -0.6})
+        whole_body.move_to_joint_positions({'arm_lift_joint': 0})
+        whole_body.move_to_joint_positions({'arm_roll_joint': -0.5})
+        whole_body.move_to_joint_positions({'wrist_flex_joint': -0.6})
+        whole_body.move_to_joint_positions({'arm_flex_joint': 0})
+
+        whole_body.move_to_joint_positions({'wrist_roll_joint': -1.919})
+
 class BaseController(object):
     def __init__(self):
         # initialize ROS publisher
@@ -283,7 +318,7 @@ if __name__ == '__main__':
     print(1, end=' ')
     vision_controller = VisionController()
     print(2, end=' ')
-    # force_sensor_controller = ForceSensorController()
+    stt_controller = STTController()
     print(3, end=' ')
     joint_controller = JointController()
     print(4, end=' ')
@@ -305,7 +340,7 @@ if __name__ == '__main__':
     z_offset = args.default_z_offset
     train_start_pub = rospy.Publisher('/unseen_cnn_learning/start', Int16, queue_size=10)
     train_label_pub = rospy.Publisher('/unseen_cnn_learning/label', Int16, queue_size=10)
-
+    stt_start_pub = rospy.Publisher('stt_start', Int16, queue_size=10)
     while True:
         # 0. initial joint
         joint_controller.move_to_joint_positions('start_position')
@@ -316,7 +351,7 @@ if __name__ == '__main__':
         omni_base.go_abs(start_position[0], start_position[1], start_position[2], 100)
         # hand_down
         joint_controller.move_to_joint_positions('search_position')
-        rospy.sleep(10)
+        rospy.sleep(15)
 
         # detect object and decide object to grasp
         print('2. detect & decide object to grasp')
@@ -361,18 +396,38 @@ if __name__ == '__main__':
         joint_controller.move_to_joint_positions('go_to_position')
         rospy.sleep(2)
         omni_base.go_abs(0,0,-1.57,100)
-        tts.say('what is the label?')
-        label = raw_input("what is label(0,1,2) : ")
-        train_label_pub.publish(int(label))
+        
+        ## start conversation #####################
+        while True:
+            tts.say('what is the label?')
+            time.sleep(1)
+            while True:
+                stt_start_pub.publish(1)
+                time.sleep(10)
+                class_label = copy.deepcopy(stt_controller.label)
+                name = stt_controller.label_list[class_label]
+                stt_start_pub.publish(2)
+                if class_label >= 3:
+                    tts.say('It is Wrong! Say again please')
+                    continue
+                break
+
+            tts.say('It is ' + name + '. please say yes or no')
+
+            time.sleep(1)
+            stt_start_pub.publish(1)
+            time.sleep(10)
+            label = copy.deepcopy(stt_controller.label)
+            stt_start_pub.publish(2)
+            if label == 3:
+                tts.say('Thank you')
+                break
+            else:
+                tts.say('Ok. please say again')
+        train_label_pub.publish(int(class_label))
         train_start_pub.publish(1)
         # scan
-        joint_controller.move_to_joint_positions('scan_position')
-        joint_controller.move_to_joint_positions('scan_x1')
-        joint_controller.move_to_joint_positions('scan_x2')
-        joint_controller.move_to_joint_positions('scan_y1')
-        joint_controller.move_to_joint_positions('scan_y2')
-        joint_controller.move_to_joint_positions('scan_z1')
-        joint_controller.move_to_joint_positions('scan_z2')
+        joint_controller.move_to_learn_object(whole_body)
         joint_controller.move_to_joint_positions('go_to_position')
         train_start_pub.publish(0)
         print('[End] trained')

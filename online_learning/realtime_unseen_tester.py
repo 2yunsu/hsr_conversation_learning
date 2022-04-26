@@ -58,13 +58,13 @@ class VisionController(object):
     def _head_callback(self, img_msg):
         cv_image = self.bridge.imgmsg_to_cv2(img_msg, "passthrough")
         cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
-        cv_image = cv2.resize(cv_image, dsize=(64, 64), interpolation=cv2.INTER_NEAREST)
+        cv_image = cv2.resize(cv_image, dsize=(128, 128), interpolation=cv2.INTER_NEAREST)
 
         self.hand_queue.append(cv_image)
 
     def _depth_callback(self, data):
         depth_img = self.bridge.imgmsg_to_cv2(data,"32FC1")
-        depth_img = cv2.resize(depth_img, dsize=(64, 64), interpolation=cv2.INTER_NEAREST)
+        depth_img = cv2.resize(depth_img, dsize=(128, 128), interpolation=cv2.INTER_NEAREST)
         self.depth_queue.append(depth_img)
 
 
@@ -152,7 +152,7 @@ if __name__ == '__main__':
     with torch.no_grad():
         while not rospy.is_shutdown():
             hand_q = vision_controller.hand_queue
-            r = torch.FloatTensor(hand_q).view(-1, 1, 3, 32, 32).cuda(args.device_id)
+            r = torch.FloatTensor(hand_q).view(-1, 1, 3, 128, 128).cuda(args.device_id)
 
             test_output = model(r)
             pred = test_output.max(1, keepdim=True)[1]
