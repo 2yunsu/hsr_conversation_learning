@@ -35,6 +35,13 @@ https://developer.softbankrobotics.com/pepper-naoqi-25/naoqi-developer-guide/nao
 1. 이 음성을 text로 전환하는거를 다음에 해보면 될듯.
 2. 구체적인 시나리오 잡아서, 찍은 이미지 및 텍스트 등을 모델에 실시간으로 학습 데이터로 넣어서 online learning 시켜보기!
 
+5/24(화)
+앞으로의 목표:
+1. 지금처럼 학습 따로, 추론 따로 하는 것이 아닌 실시간으로 추론하고 학습하는 온라인 모델 구축
+2. 강화학습과의 연결(보다 세밀한 움직임)
+3. 서버에 여러 로봇의 입력 데이터 모아 한 번에 학습
+
+
 https://github.com/jesn1219/pepper_demo_bilab
 
 python version : 2.7.17
